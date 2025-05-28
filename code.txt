@@ -1,0 +1,2057 @@
+
+
+Filename: ./ui/window.go
+-----------------------
+package ui
+
+import dom "honnef.co/go/js/dom/v2"
+
+type Window struct {
+	children []Widget
+}
+
+func NewWindow() *Window {
+	return &Window{}
+}
+
+func (w *Window) Add(widgets ...Widget) {
+	w.children = append(w.children, widgets...)
+	for _, widget := range widgets {
+		AppendToBody(widget.Element())
+	}
+}
+
+func MessageSnackbar(msg string) {
+	dom.GetWindow().Alert(msg)
+}
+
+func (w *Window) Run() {
+	// Prevents exit, but lets the event loop run
+	c := make(chan struct{})
+	<-c
+}
+
+
+
+
+
+
+Filename: ./ui/widget.go
+-----------------------
+package ui
+
+import dom "honnef.co/go/js/dom/v2"
+
+type Widget interface {
+	Element() dom.HTMLElement
+}
+
+func AppendToBody(el dom.Element) {
+	doc := dom.GetWindow().Document()
+	body := doc.GetElementsByTagName("body")[0].(*dom.HTMLBodyElement)
+	body.AppendChild(el)
+}
+
+
+
+
+
+
+Filename: ./ui/checkbox.go
+-----------------------
+package ui
+
+import (
+	"gocore/shared"
+
+	dom "honnef.co/go/js/dom/v2"
+)
+
+type CheckBox struct {
+	*shared.BaseWidget
+	input *dom.HTMLInputElement
+}
+
+func NewCheckBox() *CheckBox {
+	doc := dom.GetWindow().Document()
+	in := doc.CreateElement("input").(*dom.HTMLInputElement)
+	in.SetType("checkbox")
+
+	return &CheckBox{
+		BaseWidget: &shared.BaseWidget{Inner: in, El: in},
+		input:      in,
+	}
+}
+
+func (c *CheckBox) Checked() bool {
+	return c.input.Checked()
+}
+
+func (c *CheckBox) SetChecked(v bool) {
+	c.input.SetChecked(v)
+}
+
+func (c *CheckBox) OnChange(handler func(bool)) {
+	c.input.AddEventListener("change", false, func(dom.Event) {
+		handler(c.input.Checked())
+	})
+}
+
+
+
+
+
+
+Filename: ./ui/base.go
+-----------------------
+package ui
+
+import (
+	"fmt"
+	"gocore/core"
+	"gocore/shared"
+
+	dom "honnef.co/go/js/dom/v2"
+)
+
+// -------- Widgets (Reusable) --------
+
+// Label
+
+type Label struct{ *shared.BaseWidget }
+
+func NewLabel(text string) *Label {
+	doc := dom.GetWindow().Document()
+	el := doc.CreateElement("div").(dom.HTMLElement)
+	el.SetTextContent(text)
+	return &Label{&shared.BaseWidget{Inner: el, El: el}}
+}
+
+// func (l *Label) BindTo(obs *Observable[string]) {
+// 	l.BindText(obs)
+// }
+
+func (l *Label) Padding(px int) *Label      { l.BaseWidget = l.BaseWidget.Padding(px); return l }
+func (l *Label) Background(c string) *Label { l.BaseWidget = l.BaseWidget.Background(c); return l }
+func (l *Label) Border(s string) *Label     { l.BaseWidget = l.BaseWidget.Border(s); return l }
+func (l *Label) Center() *Label             { l.BaseWidget = l.BaseWidget.Center(); return l }
+
+// Button
+
+type Button struct{ *shared.BaseWidget }
+
+func NewButton(label string) *Button {
+	doc := dom.GetWindow().Document()
+	btn := doc.CreateElement("button").(dom.HTMLElement)
+	btn.SetTextContent(label)
+	return &Button{&shared.BaseWidget{Inner: btn, El: btn}}
+}
+
+func (b *Button) OnClick(handler func()) {
+	b.Inner.AddEventListener("click", false, func(dom.Event) {
+		handler()
+	})
+}
+
+func (b *Button) Padding(px int) *Button      { b.BaseWidget = b.BaseWidget.Padding(px); return b }
+func (b *Button) Background(c string) *Button { b.BaseWidget = b.BaseWidget.Background(c); return b }
+func (b *Button) Border(s string) *Button     { b.BaseWidget = b.BaseWidget.Border(s); return b }
+func (b *Button) Center() *Button             { b.BaseWidget = b.BaseWidget.Center(); return b }
+
+// TextField
+
+type TextField struct {
+	*shared.BaseWidget
+	input *dom.HTMLInputElement
+}
+
+func NewTextField() *TextField {
+	doc := dom.GetWindow().Document()
+	in := doc.CreateElement("input").(*dom.HTMLInputElement)
+	return &TextField{
+		BaseWidget: &shared.BaseWidget{Inner: in, El: in},
+		input:      in,
+	}
+}
+
+func (t *TextField) Text() string {
+	return t.input.Value()
+}
+
+func (t *TextField) BindTo(obs *core.Observable[string]) {
+	obs.Subscribe(func(val string) {
+		t.input.SetValue(val)
+	})
+	t.input.AddEventListener("input", false, func(dom.Event) {
+		obs.Set(t.Text())
+	})
+}
+
+func (d *TextField) Padding(px int) *TextField { d.BaseWidget = d.BaseWidget.Padding(px); return d }
+func (d *TextField) Background(c string) *TextField {
+	d.BaseWidget = d.BaseWidget.Background(c)
+	return d
+}
+func (d *TextField) Border(s string) *TextField { d.BaseWidget = d.BaseWidget.Border(s); return d }
+func (d *TextField) Center() *TextField         { d.BaseWidget = d.BaseWidget.Center(); return d }
+
+func (t *TextField) Input() *dom.HTMLInputElement {
+	return t.input
+}
+
+func (t *TextField) SetText(val string) {
+	t.input.SetValue(val)
+}
+
+// Div
+
+type Div struct {
+	*shared.BaseWidget
+}
+
+func NewDiv() *Div {
+	doc := dom.GetWindow().Document()
+	d := doc.CreateElement("div").(dom.HTMLElement)
+	return &Div{&shared.BaseWidget{Inner: d, El: d}}
+}
+
+func (d *Div) Add(children ...Widget) {
+	for _, c := range children {
+		d.El.AppendChild(c.Element())
+	}
+}
+
+func (d *Div) Padding(px int) *Div      { d.BaseWidget = d.BaseWidget.Padding(px); return d }
+func (d *Div) Background(c string) *Div { d.BaseWidget = d.BaseWidget.Background(c); return d }
+func (d *Div) Border(s string) *Div     { d.BaseWidget = d.BaseWidget.Border(s); return d }
+func (d *Div) Center() *Div             { d.BaseWidget = d.BaseWidget.Center(); return d }
+
+// ------------
+
+// --- VBox ---
+type VBox struct {
+	*shared.BaseWidget
+}
+
+func NewVBox(children ...Widget) *VBox {
+	doc := dom.GetWindow().Document()
+	container := doc.CreateElement("div").(dom.HTMLElement)
+
+	container.Style().SetProperty("display", "flex", "")
+	container.Style().SetProperty("flex-direction", "column", "")
+	container.Style().SetProperty("gap", "0.5rem", "")
+
+	vbox := &VBox{&shared.BaseWidget{Inner: container, El: container}}
+
+	if len(children) > 0 {
+		vbox.Add(children...)
+	}
+	return vbox
+}
+
+func (v *VBox) Add(children ...Widget) {
+	for _, c := range children {
+		v.El.AppendChild(c.Element())
+	}
+}
+
+func (v *VBox) Padding(px int) *VBox      { v.BaseWidget = v.BaseWidget.Padding(px); return v }
+func (v *VBox) Background(c string) *VBox { v.BaseWidget = v.BaseWidget.Background(c); return v }
+func (v *VBox) Border(s string) *VBox     { v.BaseWidget = v.BaseWidget.Border(s); return v }
+func (v *VBox) Center() *VBox             { v.BaseWidget = v.BaseWidget.Center(); return v }
+
+// --- HBox ---
+type HBox struct {
+	*shared.BaseWidget
+}
+
+func NewHBox(children ...Widget) *HBox {
+	doc := dom.GetWindow().Document()
+	container := doc.CreateElement("div").(dom.HTMLElement)
+
+	container.Style().SetProperty("display", "flex", "")
+	container.Style().SetProperty("flex-direction", "row", "")
+	container.Style().SetProperty("gap", "0.5rem", "")
+
+	hbox := &HBox{&shared.BaseWidget{Inner: container, El: container}}
+
+	if len(children) > 0 {
+		hbox.Add(children...)
+	}
+
+	return hbox
+}
+
+func (h *HBox) Add(children ...Widget) {
+	for _, c := range children {
+		h.El.AppendChild(c.Element())
+	}
+}
+
+func (h *HBox) Padding(px int) *HBox      { h.BaseWidget = h.BaseWidget.Padding(px); return h }
+func (h *HBox) Background(c string) *HBox { h.BaseWidget = h.BaseWidget.Background(c); return h }
+func (h *HBox) Border(s string) *HBox     { h.BaseWidget = h.BaseWidget.Border(s); return h }
+func (h *HBox) Center() *HBox             { h.BaseWidget = h.BaseWidget.Center(); return h }
+
+// --- TextArea ---
+type TextArea struct {
+	*shared.BaseWidget
+	area *dom.HTMLTextAreaElement
+}
+
+func NewTextArea() *TextArea {
+	doc := dom.GetWindow().Document()
+	ta := doc.CreateElement("textarea").(*dom.HTMLTextAreaElement)
+
+	return &TextArea{
+		BaseWidget: &shared.BaseWidget{Inner: ta, El: ta},
+		area:       ta,
+	}
+}
+
+func (t *TextArea) Text() string {
+	return t.area.Value()
+}
+
+func (t *TextArea) SetText(val string) {
+	t.area.SetValue(val)
+}
+
+func (t *TextArea) BindTo(obs *core.Observable[string]) {
+	obs.Subscribe(func(val string) {
+		t.area.SetValue(val)
+	})
+	t.area.AddEventListener("input", false, func(dom.Event) {
+		obs.Set(t.Text())
+	})
+}
+
+func (t *TextArea) Padding(px int) *TextArea { t.BaseWidget = t.BaseWidget.Padding(px); return t }
+
+func (t *TextArea) Background(c string) *TextArea {
+	t.BaseWidget = t.BaseWidget.Background(c)
+	return t
+}
+func (t *TextArea) Border(s string) *TextArea { t.BaseWidget = t.BaseWidget.Border(s); return t }
+
+func (t *TextArea) Center() *TextArea { t.BaseWidget = t.BaseWidget.Center(); return t }
+
+func (b *TextArea) wrapWithStyle(styles map[string]string) *TextArea {
+	if b.IsWrapped {
+		for prop, val := range styles {
+			b.El.Style().SetProperty(prop, val, "")
+		}
+		return b
+	}
+
+	doc := dom.GetWindow().Document()
+	wrapper := doc.CreateElement("div").(dom.HTMLElement)
+
+	for prop, val := range styles {
+		wrapper.Style().SetProperty(prop, val, "")
+	}
+
+	// ✅ STEP 1: Detach from DOM if attached
+	if parent := b.El.ParentNode(); parent != nil {
+		parent.RemoveChild(b.El)
+	}
+
+	// ✅ STEP 2: Append to wrapper safely
+	wrapper.AppendChild(b.El)
+
+	// ✅ STEP 3: Track new outermost
+	b.El = wrapper
+	b.IsWrapped = true
+
+	return b
+}
+
+func (b *TextArea) Width(percent string) *TextArea {
+	return b.wrapWithStyle(map[string]string{
+		"width": fmt.Sprintf("%s", percent),
+	})
+}
+
+// Updated BindText
+func BindText(el dom.HTMLElement, obs core.ReadonlyObservable[string]) {
+	obs.Subscribe(func(val string) {
+		el.SetTextContent(val)
+	})
+}
+
+// Updated Label.BindTo
+func (l *Label) BindTo(obs core.ReadonlyObservable[string]) {
+	l.BindText(obs)
+}
+
+
+
+
+
+
+Filename: ./cmd/coredev/main.go
+-----------------------
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io/fs"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+)
+
+var serveDir string
+var reloadNeeded atomic.Bool
+var resetIdleTimer = make(chan struct{}, 1)
+
+const defaultIndexHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Go WASM App</title>
+</head>
+<body>
+    <h1>Go WASM App</h1>
+    <script src="wasm_exec.js"></script>
+    <script>
+        const go = new Go();
+        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+            go.run(result.instance);
+        });
+
+        setInterval(() => {
+            fetch('/reload-check').then(res => res.text()).then(flag => {
+                if (flag.trim() === 'reload') {
+                    console.log('🔄 Reloading page...');
+                    window.location.reload();
+                }
+            });
+        }, 1000);
+    </script>
+</body>
+</html>`
+
+func main() {
+	port := flag.String("port", "8090", "Port to run the server on")
+	dir := flag.String("dir", "static", "Directory to serve")
+	noWatch := flag.Bool("no-watch", false, "Disable watching for file changes")
+	noBuild := flag.Bool("no-build", false, "Disable rebuild at startup")
+	buildRelease := flag.Bool("build-release", false, "Build once without watching or live-reload")
+	flag.Parse()
+
+	serveDir = *dir
+	ensureWasmExec()
+	ensureFileExists(filepath.Join(serveDir, "index.html"), defaultIndexHTML)
+
+	if *buildRelease {
+		rebuild(serveDir)
+		fmt.Println("✅ Release build completed. Files are in:", serveDir)
+		return
+	}
+
+	if *noBuild && *noWatch {
+		log.Println("⚠️ Warning: both --no-build and --no-watch enabled; make sure main.wasm exists")
+	}
+
+	if !*noBuild {
+		rebuild(serveDir)
+	}
+
+	if !*noWatch {
+		go watchAndRebuild()
+		go idleTimeoutChecker()
+	}
+
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+
+	r.Get("/reload-check", func(w http.ResponseWriter, r *http.Request) {
+		if reloadNeeded.Load() {
+			reloadNeeded.Store(false)
+			w.Write([]byte("reload"))
+		} else {
+			w.Write([]byte("noop"))
+		}
+	})
+
+	r.Handle("/*", http.FileServer(http.Dir(*dir)))
+
+	log.Printf("🚀 Golid dev server running at http://localhost:%s (serving from %s)", *port, *dir)
+	log.Fatal(http.ListenAndServe(":"+*port, r))
+}
+
+func watchAndRebuild() {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	err = filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if strings.HasPrefix(path, "./cmd") {
+				return filepath.SkipDir
+			}
+			return watcher.Add(path)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 && strings.HasSuffix(event.Name, ".go") {
+				resetIdleTimer <- struct{}{}
+				rebuild(serveDir)
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			log.Println("Watcher error:", err)
+		}
+	}
+}
+
+func idleTimeoutChecker() {
+	timer := time.NewTimer(5 * time.Minute)
+	for {
+		select {
+		case <-resetIdleTimer:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(5 * time.Minute)
+		case <-timer.C:
+			fmt.Print("\n⚠️  No changes detected for 5 minutes!")
+			os.Exit(0)
+		}
+	}
+}
+
+func rebuild(dir string) {
+	cmd := exec.Command("go", "build", "-o", filepath.Join(dir, "main.wasm"), "./app")
+	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+	cmd.Stdout = log.Writer()
+	cmd.Stderr = log.Writer()
+	if err := cmd.Run(); err != nil {
+		log.Println("❌ Build failed:", err)
+	} else {
+		log.Println("✅ Build succeeded")
+		reloadNeeded.Store(true)
+	}
+}
+
+func ensureFileExists(filename, content string) {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			log.Fatalf("❌ Failed to create %s: %v", filename, err)
+		}
+		log.Printf("✅ Created %s", filename)
+	}
+}
+
+func ensureWasmExec() {
+	destPath := filepath.Join(serveDir, "wasm_exec.js")
+	if _, err := os.Stat(destPath); err == nil {
+		return
+	}
+
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		log.Fatalf("❌ Failed to get GOROOT: %v", err)
+	}
+	goroot := strings.TrimSpace(string(out))
+
+	paths := []string{
+		filepath.Join(goroot, "lib", "wasm", "wasm_exec.js"),
+		filepath.Join(goroot, "misc", "wasm", "wasm_exec.js"),
+	}
+
+	var wasmPath string
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			wasmPath = path
+			break
+		}
+	}
+	if wasmPath == "" {
+		log.Fatal("❌ Could not find wasm_exec.js in known GOROOT paths")
+	}
+
+	input, err := os.ReadFile(wasmPath)
+	if err != nil {
+		log.Fatalf("❌ Failed to read wasm_exec.js: %v", err)
+	}
+	if err := os.WriteFile(destPath, input, 0644); err != nil {
+		log.Fatalf("❌ Failed to write wasm_exec.js to %s: %v", destPath, err)
+	}
+
+	log.Println("✅ Copied wasm_exec.js from:", wasmPath)
+}
+
+
+
+
+
+
+Filename: ./index.html
+-----------------------
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Go WASM App</title>
+</head>
+<body>
+    <h1>Go WASM App</h1>
+    <script src="wasm_exec.js"></script>
+    <script>
+        const go = new Go();
+        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+            go.run(result.instance);
+        });
+
+        setInterval(() => {
+            fetch('/reload-check').then(res => res.text()).then(flag => {
+                if (flag.trim() === 'reload') {
+                    console.log('🔄 Reloading page...');
+                    window.location.reload();
+                }
+            });
+        }, 1000);
+    </script>
+</body>
+</html>
+
+
+
+
+
+Filename: ./core/derive.go
+-----------------------
+package core
+
+import (
+	"context"
+	"sync"
+)
+
+// === Derived (reactive/computed) ===
+
+type Derived[T any] struct {
+	mu     sync.Mutex
+	value  T
+	subs   []func(T)
+	cancel context.CancelFunc
+}
+
+// Derive creates a reactive computed observable.
+func Derive[T any](compute func() T) *Derived[T] {
+	d := &Derived[T]{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	d.cancel = cancel
+
+	var deps []internalObservable
+	depMu := sync.Mutex{}
+
+	tracker := &dependencyTracker{
+		add: func(obs internalObservable) {
+			depMu.Lock()
+			deps = append(deps, obs)
+			depMu.Unlock()
+		},
+	}
+
+	result := runWithTracker(ctx, tracker, compute)
+	d.value = result
+
+	update := func() {
+		newVal := compute()
+		d.mu.Lock()
+		d.value = newVal
+		for _, sub := range d.subs {
+			go sub(newVal) // async dispatch
+		}
+		d.mu.Unlock()
+	}
+
+	for _, dep := range deps {
+		dep.addSubscriber(func() {
+			go update()
+		})
+	}
+
+	return d
+}
+
+func (d *Derived[T]) Get() T {
+	d.mu.Lock()
+	val := d.value
+	d.mu.Unlock()
+	return val
+}
+
+func (d *Derived[T]) Subscribe(sub func(T)) {
+	d.mu.Lock()
+	d.subs = append(d.subs, sub)
+	val := d.value
+	d.mu.Unlock()
+	sub(val)
+}
+
+func Map[T any, U any](d *Derived[T], f func(T) U) *Derived[U] {
+	return Derive(func() U {
+		return f(d.Get())
+	})
+}
+
+// === Dependency Tracking Context ===
+
+type contextKey string
+
+var trackerKey = contextKey("reactive")
+
+type dependencyTracker struct {
+	add func(internalObservable)
+}
+
+func runWithTracker[T any](ctx context.Context, tracker *dependencyTracker, compute func() T) T {
+	prevCtxMu.Lock()
+	prev := currentCtx
+	currentCtx = context.WithValue(ctx, trackerKey, tracker)
+	prevCtxMu.Unlock()
+
+	val := compute()
+
+	prevCtxMu.Lock()
+	currentCtx = prev
+	prevCtxMu.Unlock()
+
+	return val
+}
+
+var (
+	currentCtx context.Context
+	prevCtxMu  sync.Mutex
+)
+
+// ==== Observable hook ====
+
+func trackObservable(obs internalObservable) {
+	prevCtxMu.Lock()
+	ctx := currentCtx
+	prevCtxMu.Unlock()
+
+	if ctx != nil {
+		if tracker, ok := ctx.Value(trackerKey).(*dependencyTracker); ok && tracker != nil {
+			tracker.add(obs)
+		}
+	}
+}
+
+
+
+
+
+
+Filename: ./core/observable.go
+-----------------------
+package core
+
+import (
+	"gocore/reactive"
+	"sync"
+)
+
+type internalObservable interface {
+	addSubscriber(func())
+}
+
+type Observable[T any] struct {
+	value     T
+	listeners []func(T)
+	mu        sync.Mutex
+}
+
+type ReadonlyObservable[T any] interface {
+	Get() T
+	Subscribe(func(T))
+}
+
+func NewObservable[T any](initial T) *Observable[T] {
+	return &Observable[T]{value: initial}
+}
+
+func (o *Observable[T]) Get() T {
+	trackObservable(o)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.value
+}
+
+func (o *Observable[T]) Set(v T) {
+	o.mu.Lock()
+	o.value = v
+	for _, listener := range o.listeners {
+		listener(v)
+	}
+	o.mu.Unlock()
+}
+
+func (o *Observable[T]) Subscribe(listener func(T)) {
+	o.mu.Lock()
+	o.listeners = append(o.listeners, listener)
+	listener(o.value)
+	o.mu.Unlock()
+}
+
+func (o *Observable[T]) addSubscriber(update func()) {
+	o.mu.Lock()
+	o.listeners = append(o.listeners, func(T) { update() })
+	o.mu.Unlock()
+}
+
+var _ reactive.ReadonlyObservable[any] = (*Observable[any])(nil)
+
+
+
+
+
+
+Filename: ./app/cownway.go
+-----------------------
+package main
+
+/*
+
+import (
+	"gocore/core"
+	"gocore/shared"
+	"gocore/ui"
+	"strconv"
+)
+
+// Cell represents a reactive cell in the Game of Life.
+
+type Cell struct {
+	Alive *core.Observable[bool]
+	View  shared.Widget
+}
+
+func newCell() *Cell {
+	alive := core.NewObservable(false)
+
+	view := ui.NewDiv().Width(20).Height(20).Border("1px solid #ccc")
+	view.BindStyle(core.Derive(func() map[string]string {
+		if alive.Get() {
+			return map[string]string{"background": "black"}
+		}
+		return map[string]string{"background": "white"}
+	}))
+
+	view.OnClick(func() {
+		alive.Set(!alive.Get())
+	})
+
+	return &Cell{Alive: alive, View: view}
+}
+
+func ConwayReactive() {
+	const rows, cols = 20, 20
+	grid := make([][]*Cell, rows)
+
+	for i := range grid {
+		grid[i] = make([]*Cell, cols)
+		for j := range grid[i] {
+			grid[i][j] = newCell()
+		}
+	}
+
+	container := ui.NewVBox()
+
+	for _, row := range grid {
+		h := ui.NewHBox()
+		for _, cell := range row {
+			h.Add(cell.View)
+		}
+		container.Add(h)
+	}
+
+	step := func() {
+		next := make([][]bool, rows)
+		for i := range next {
+			next[i] = make([]bool, cols)
+			for j := range next[i] {
+				liveNeighbors := countLiveNeighbors(grid, i, j)
+				currAlive := grid[i][j].Alive.Get()
+				next[i][j] = liveRule(currAlive, liveNeighbors)
+			}
+		}
+		for i := range grid {
+			for j := range grid[i] {
+				grid[i][j].Alive.Set(next[i][j])
+			}
+		}
+	}
+
+	run := ui.NewButton("▶️ Step").Padding(8)
+	run.OnClick(step)
+
+	count := core.Derive(func() string {
+		total := 0
+		for i := range grid {
+			for j := range grid[i] {
+				if grid[i][j].Alive.Get() {
+					total++
+				}
+			}
+		}
+		return "Alive: " + strconv.Itoa(total)
+	})
+
+	label := ui.NewLabel("").Padding(8).Border("1px solid grey")
+	label.BindTo(count)
+
+	root := ui.NewVBox(container, run, label).Padding(12)
+
+	win := ui.NewWindow()
+	win.Add(root)
+	win.Run()
+}
+
+func countLiveNeighbors(grid [][]*Cell, x, y int) int {
+	count := 0
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			nx, ny := x+dx, y+dy
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			if nx >= 0 && nx < len(grid) && ny >= 0 && ny < len(grid[0]) {
+				if grid[nx][ny].Alive.Get() {
+					count++
+				}
+			}
+		}
+	}
+	return count
+}
+
+func liveRule(alive bool, neighbors int) bool {
+	switch {
+	case alive && (neighbors == 2 || neighbors == 3):
+		return true
+	case !alive && neighbors == 3:
+		return true
+	default:
+		return false
+	}
+}
+
+*/
+
+
+
+
+
+
+Filename: ./app/one_way.go
+-----------------------
+package main
+
+import (
+	"fmt"
+	"gocore/core"
+	"gocore/ui"
+)
+
+func OneWay() {
+	source := core.NewObservable("")
+
+	in := ui.NewTextField()
+	in.BindTo(source)
+
+	out := ui.NewTextField()
+
+	btn := ui.NewButton("Copy")
+	btn.OnClick(func() {
+		fmt.Println("Clicked:", source.Get())
+		out.SetText(source.Get())
+	})
+
+	w := ui.NewWindow()
+	w.Add(in, out, btn)
+	w.Run()
+}
+
+
+
+
+
+
+Filename: ./app/conway_2.go
+-----------------------
+
+package main
+
+/*
+import (
+	"gocore/core"
+	"gocore/shared"
+	"gocore/ui"
+	"math/rand"
+	"strconv"
+)
+
+type Cell struct {
+	Alive *core.Observable[bool]
+	Next  *core.Derived[bool]
+	View  shared.Widget
+}
+
+func newCell() *Cell {
+	alive := core.NewObservable(rand.Float32() < 0.2)
+
+	view := ui.NewDiv().
+		Width(20).Height(20).Border("1px solid #ccc")
+
+	view.BindStyle(core.Derive(func() map[string]string {
+		if alive.Get() {
+			return map[string]string{"background": "black"}
+		}
+		return map[string]string{"background": "white"}
+	}))
+
+	return &Cell{Alive: alive, View: view}
+}
+
+func ConwaySafeReactive() {
+	const rows, cols = 20, 20
+	grid := make([][]*Cell, rows)
+
+	for i := range grid {
+		grid[i] = make([]*Cell, cols)
+		for j := range grid[i] {
+			grid[i][j] = newCell()
+		}
+	}
+
+	// Derive Next state safely
+	for i := range grid {
+		for j := range grid[i] {
+			cell := grid[i][j]
+			neighbors := getNeighbors(grid, i, j)
+
+			cell.Next = core.Derive(func() bool {
+				count := 0
+				for _, n := range neighbors {
+					if n.Alive.Get() {
+						count++
+					}
+				}
+				return liveRule(cell.Alive.Get(), count)
+			})
+		}
+	}
+
+	// UI Setup
+	container := ui.NewVBox()
+	for _, row := range grid {
+		h := ui.NewHBox()
+		for _, cell := range row {
+			h.Add(cell.View)
+		}
+		container.Add(h)
+	}
+
+	stepBtn := ui.NewButton("▶️ Step").Padding(8)
+
+	stepBtn.OnClick(func() {
+		// Precompute next states (forces recompute)
+		for i := range grid {
+			for j := range grid[i] {
+				_ = grid[i][j].Next.Get()
+			}
+		}
+		// Now apply changes
+		for i := range grid {
+			for j := range grid[i] {
+				next := grid[i][j].Next.Get()
+				if grid[i][j].Alive.Get() != next {
+					grid[i][j].Alive.Set(next)
+				}
+			}
+		}
+	})
+
+	count := core.Derive(func() string {
+		total := 0
+		for i := range grid {
+			for j := range grid[i] {
+				if grid[i][j].Alive.Get() {
+					total++
+				}
+			}
+		}
+		return "Alive: " + strconv.Itoa(total)
+	})
+
+	label := ui.NewLabel("").Padding(8).Border("1px solid grey")
+	label.BindTo(count)
+
+	win := ui.NewWindow()
+	win.Add(container, stepBtn, label)
+	win.Run()
+}
+
+func getNeighbors(grid [][]*Cell, x, y int) []*Cell {
+	var result []*Cell
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			nx, ny := x+dx, y+dy
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			if nx >= 0 && nx < len(grid) && ny >= 0 && ny < len(grid[0]) {
+				result = append(result, grid[nx][ny])
+			}
+		}
+	}
+	return result
+}
+
+func liveRule(alive bool, neighbors int) bool {
+	switch {
+	case alive && (neighbors == 2 || neighbors == 3):
+		return true
+	case !alive && neighbors == 3:
+		return true
+	default:
+		return false
+	}
+}
+
+*/
+
+
+
+
+
+
+Filename: ./app/conway_3.go
+-----------------------
+package main
+
+import (
+	"gocore/ui"
+	"math/rand"
+	"strconv"
+	"sync"
+	"time"
+
+	dom "honnef.co/go/js/dom/v2"
+)
+
+const (
+	rows = 20
+	cols = 20
+)
+
+type Cell struct {
+	i, j    int
+	alive   bool
+	lock    sync.Mutex
+	view    dom.HTMLElement
+	grid    *[][]*Cell
+	changed chan struct{}
+}
+
+func newCell(i, j int, grid *[][]*Cell) *Cell {
+	doc := dom.GetWindow().Document()
+	div := doc.CreateElement("div").(dom.HTMLElement)
+	div.Style().SetProperty("width", "20px", "")
+	div.Style().SetProperty("height", "20px", "")
+	div.Style().SetProperty("border", "1px solid #ccc", "")
+	div.Style().SetProperty("box-sizing", "border-box", "")
+	div.Style().SetProperty("background", "white", "")
+
+	c := &Cell{
+		i:       i,
+		j:       j,
+		grid:    grid,
+		view:    div,
+		changed: make(chan struct{}, 1),
+	}
+
+	// Random start
+	if rand.Float32() < 0.2 {
+		c.alive = true
+		c.updateVisual()
+	}
+
+	// Allow clicking to toggle manually
+	div.AddEventListener("click", false, func(dom.Event) {
+		c.lock.Lock()
+		c.alive = !c.alive
+		c.updateVisual()
+		c.lock.Unlock()
+		c.broadcast()
+	})
+
+	return c
+}
+
+func (c *Cell) updateVisual() {
+	if c.alive {
+		c.view.Style().SetProperty("background", "black", "")
+	} else {
+		c.view.Style().SetProperty("background", "white", "")
+	}
+}
+
+func (c *Cell) broadcast() {
+	select {
+	case c.changed <- struct{}{}:
+	default:
+	}
+}
+
+func (c *Cell) run() {
+	for {
+		time.Sleep(time.Duration(rand.Intn(150)+50) * time.Millisecond)
+
+		c.lock.Lock()
+		neighbors := c.getNeighbors()
+		aliveCount := 0
+		for _, n := range neighbors {
+			n.lock.Lock()
+			if n.alive {
+				aliveCount++
+			}
+			n.lock.Unlock()
+		}
+
+		next := c.alive
+		switch {
+		case c.alive && (aliveCount < 2 || aliveCount > 3):
+			next = false
+		case !c.alive && aliveCount == 3:
+			next = true
+		}
+
+		if next != c.alive {
+			c.alive = next
+			c.updateVisual()
+			c.broadcast()
+		}
+		c.lock.Unlock()
+	}
+}
+
+func (c *Cell) getNeighbors() []*Cell {
+	var result []*Cell
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			ni, nj := c.i+dx, c.j+dy
+			if ni >= 0 && ni < rows && nj >= 0 && nj < cols {
+				result = append(result, (*c.grid)[ni][nj])
+			}
+		}
+	}
+	return result
+}
+
+func ConwayReactiveGrid() {
+	grid := make([][]*Cell, rows)
+	for i := range grid {
+		grid[i] = make([]*Cell, cols)
+	}
+
+	// Initialize grid
+	for i := range grid {
+		for j := range grid[i] {
+			grid[i][j] = newCell(i, j, &grid)
+		}
+	}
+
+	// Start goroutines
+	for i := range grid {
+		for j := range grid[i] {
+			go grid[i][j].run()
+		}
+	}
+
+	// Display grid
+	container := ui.NewDiv()
+	container.Element().Style().SetProperty("display", "grid", "")
+	container.Element().Style().SetProperty("grid-template-columns", "repeat("+strconv.Itoa(cols)+", 20px)", "")
+	container.Element().Style().SetProperty("gap", "0px", "")
+
+	for i := range grid {
+		for j := range grid[i] {
+			container.Element().AppendChild(grid[i][j].view)
+		}
+	}
+
+	win := ui.NewWindow()
+	win.Add(container)
+	win.Run()
+}
+
+
+
+
+
+
+Filename: ./app/two_way.go
+-----------------------
+package main
+
+import (
+	"gocore/core"
+	"gocore/ui"
+)
+
+func TwoWay() {
+	name := core.NewObservable("Your Name")
+
+	label := ui.NewTextField().
+		Padding(8).Background("lightblue").
+		Border("2px solid grey")
+	label.BindTo(name)
+
+	sep := ui.NewDiv().Height(10)
+
+	input := ui.NewTextField().
+		Padding(8).Background("lightblue").
+		Border("2px solid grey")
+	input.BindTo(name)
+
+	win := ui.NewWindow()
+	win.Add(input, sep, label)
+	win.Run()
+}
+
+
+
+
+
+
+Filename: ./app/counter.go
+-----------------------
+package main
+
+import (
+	"fmt"
+	"gocore/core"
+	"gocore/ui"
+)
+
+func counter() {
+	count := core.NewObservable(0)
+
+	// 1st formulation
+
+	label := ui.NewLabel("").
+		Padding(8).
+		Border("1px solid #ccc").
+		Center()
+
+	count.Subscribe(func(v int) {
+		label.SetText(fmt.Sprintf("Count: %d", v))
+	})
+
+	// 2nd formulation
+
+	// Label bound to count
+
+	// label := ui.NewLabel("").
+	//		Padding(8).
+	//		Border("1px solid #ccc").
+	//		Center()
+	//	label.BindTo(core.Derive(func() string {
+	//		return fmt.Sprintf("Count: %d", count.Get())
+	//	}))
+
+	// Increment button
+	inc := ui.NewButton("➕").
+		Padding(8).
+		Background("lightgreen")
+	inc.OnClick(func() {
+		count.Set(count.Get() + 1)
+	})
+
+	// Decrement button
+	dec := ui.NewButton("➖").
+		Padding(8).
+		Background("salmon")
+	dec.OnClick(func() {
+		count.Set(count.Get() - 1)
+	})
+
+	row := ui.NewHBox(dec, label, inc).Padding(12)
+
+	win := ui.NewWindow()
+	win.Add(row)
+	win.Run()
+}
+
+
+
+
+
+
+Filename: ./app/todo.go
+-----------------------
+package main
+
+import (
+	"fmt"
+	"gocore/core"
+	"gocore/ui"
+	"strings"
+)
+
+type Task struct {
+	Label   string
+	Checked *core.Observable[bool]
+}
+
+func todo() {
+	win := ui.NewWindow()
+
+	taskText := core.NewObservable("")
+	tasks := core.NewObservable([]*Task{})
+
+	// Input
+	input := ui.NewTextField()
+	input.BindTo(taskText)
+	input.Padding(8)
+
+	// Add Button
+	addBtn := ui.NewButton("Add").Padding(8)
+
+	// Task list container
+	list := ui.NewVBox().Padding(8)
+
+	// Header
+	header := ui.NewHBox()
+	header.Add(input, addBtn)
+
+	// Add button logic (no derived, no subscribe)
+	addBtn.OnClick(func() {
+		text := strings.TrimSpace(taskText.Get())
+		if text == "" {
+			return
+		}
+
+		task := &Task{
+			Label:   text,
+			Checked: core.NewObservable(false),
+		}
+		taskText.Set("")
+
+		current := tasks.Get()
+		tasks.Set(append(current, task))
+
+		checkbox := ui.NewCheckBox()
+		checkbox.SetChecked(false)
+		checkbox.OnChange(func(checked bool) {
+			task.Checked.Set(checked)
+			tasks.Set(tasks.Get())
+		})
+
+		label := ui.NewLabel(task.Label)
+
+		row := ui.NewHBox()
+		row.Add(checkbox, label)
+		list.Add(row)
+	})
+
+	remaining := core.Derive(func() string {
+		count := 0
+		for _, task := range tasks.Get() {
+			if !task.Checked.Get() {
+				count++
+			}
+		}
+		return fmt.Sprintf("🕒 Remaining tasks: %d", count)
+	})
+
+	remainingLabel := ui.NewLabel("")
+	remainingLabel.BindTo(remaining)
+
+	// Derived count of total tasks
+	taskCount := core.Derive(func() string {
+		return fmt.Sprintf("📦 Total tasks: %d", len(tasks.Get()))
+	})
+
+	countLabel := ui.NewLabel("")
+	countLabel.BindTo(taskCount)
+
+	// Main layout
+	layout := ui.NewVBox(header, list, countLabel, remainingLabel).Padding(16)
+
+	win.Add(layout)
+	win.Run()
+}
+
+
+
+
+
+
+Filename: ./app/main.go
+-----------------------
+package main
+
+func main() {
+	//counter()
+	//todo()
+	//TwoWay()
+	//OneWay()
+	//ConwayReactive()
+	//ConwaySafeReactive()
+	ConwayReactiveGrid()
+}
+
+
+
+
+
+
+Filename: ./reactive/types.go
+-----------------------
+package reactive
+
+type ReadonlyObservable[T any] interface {
+	Get() T
+	Subscribe(func(T))
+}
+
+
+
+
+
+
+Filename: ./shared/widget/base.go
+-----------------------
+package widget
+
+import (
+	"fmt"
+
+	"gocore/reactive"
+
+	dom "honnef.co/go/js/dom/v2"
+)
+
+type BaseWidget struct {
+	Inner     dom.HTMLElement
+	El        dom.HTMLElement
+	IsWrapped bool
+}
+
+func (b *BaseWidget) Element() dom.HTMLElement {
+	return b.El
+}
+
+func (b *BaseWidget) SetText(text string) {
+	b.Inner.SetTextContent(text)
+}
+
+func (b *BaseWidget) SetStyle(prop, value string) {
+	b.Inner.Style().SetProperty(prop, value, "")
+}
+
+func (b *BaseWidget) wrapWithStyle(styles map[string]string) *BaseWidget {
+	if b.IsWrapped {
+		for prop, val := range styles {
+			b.El.Style().SetProperty(prop, val, "")
+		}
+		return b
+	}
+
+	doc := dom.GetWindow().Document()
+	wrapper := doc.CreateElement("div").(dom.HTMLElement)
+	for prop, val := range styles {
+		wrapper.Style().SetProperty(prop, val, "")
+	}
+
+	if parent := b.El.ParentNode(); parent != nil {
+		parent.RemoveChild(b.El)
+	}
+
+	wrapper.AppendChild(b.El)
+	b.El = wrapper
+	b.IsWrapped = true
+	return b
+}
+
+func (b *BaseWidget) Padding(px int) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"padding": fmt.Sprintf("%dpx", px),
+	})
+}
+
+func (b *BaseWidget) Background(color string) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"background": color,
+	})
+}
+
+func (b *BaseWidget) Border(style string) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"border": style,
+	})
+}
+
+func (b *BaseWidget) BindText(obs reactive.ReadonlyObservable[string]) {
+	obs.Subscribe(func(val string) {
+		b.SetText(val)
+	})
+}
+
+
+
+
+
+
+Filename: ./shared/basewidget.go
+-----------------------
+package shared
+
+import (
+	"fmt"
+	"strings"
+
+	dom "honnef.co/go/js/dom/v2"
+)
+
+type ReadonlyObservable[T any] interface {
+	Get() T
+	Subscribe(func(T))
+}
+
+type BaseWidget struct {
+	Inner     dom.HTMLElement
+	El        dom.HTMLElement
+	IsWrapped bool
+}
+
+func (b *BaseWidget) Element() dom.HTMLElement {
+	return b.El
+}
+
+func (b *BaseWidget) SetText(text string) {
+	b.Inner.SetTextContent(text)
+}
+
+func (b *BaseWidget) SetHTML(html string) {
+	b.Inner.SetInnerHTML(html)
+}
+
+func (b *BaseWidget) SetClass(class string) {
+	b.Inner.SetAttribute("class", class)
+}
+
+func (b *BaseWidget) AddClass(class string) {
+	curr := b.Inner.GetAttribute("class")
+	if curr != "" {
+		class = curr + " " + class
+	}
+	b.Inner.SetAttribute("class", class)
+}
+
+func (b *BaseWidget) RemoveClass(class string) {
+	curr := strings.Fields(b.Inner.GetAttribute("class"))
+	var result []string
+	for _, c := range curr {
+		if c != class {
+			result = append(result, c)
+		}
+	}
+	b.Inner.SetAttribute("class", strings.Join(result, " "))
+}
+
+func (b *BaseWidget) SetStyle(prop, value string) {
+	b.Inner.Style().SetProperty(prop, value, "")
+}
+
+func (b *BaseWidget) Show() {
+	b.Inner.Style().SetProperty("display", "", "")
+}
+
+func (b *BaseWidget) Hide() {
+	b.Inner.Style().SetProperty("display", "none", "")
+}
+
+func (b *BaseWidget) SetAttr(key, val string) {
+	b.Inner.SetAttribute(key, val)
+}
+
+func (b *BaseWidget) GetAttr(key string) string {
+	return b.Inner.GetAttribute(key)
+}
+
+//func (b *BaseWidget) OnClick(handler func()) {
+//	b.Inner.AddEventListener("click", false, func(dom.Event) {
+//		handler()
+//	})
+//}
+
+func (b *BaseWidget) OnClick(handler func()) {
+	b.El.AddEventListener("click", false, func(dom.Event) {
+		handler()
+	})
+}
+
+func (b *BaseWidget) On(event string, handler func()) {
+	b.Inner.AddEventListener(event, false, func(dom.Event) {
+		handler()
+	})
+}
+
+func (b *BaseWidget) AppendTo(parent dom.Element) {
+	parent.AppendChild(b.El)
+}
+
+func (b *BaseWidget) Remove() {
+	if parent := b.El.ParentNode(); parent != nil {
+		parent.RemoveChild(b.El)
+	}
+}
+
+func (b *BaseWidget) BindText(obs ReadonlyObservable[string]) {
+	obs.Subscribe(func(val string) {
+		b.SetText(val)
+	})
+}
+
+func (b *BaseWidget) wrapWithStyle(styles map[string]string) *BaseWidget {
+	if b.IsWrapped {
+		for prop, val := range styles {
+			b.El.Style().SetProperty(prop, val, "")
+		}
+		return b
+	}
+	doc := dom.GetWindow().Document()
+	wrapper := doc.CreateElement("div").(dom.HTMLElement)
+	for prop, val := range styles {
+		wrapper.Style().SetProperty(prop, val, "")
+	}
+	if parent := b.El.ParentNode(); parent != nil {
+		parent.RemoveChild(b.El)
+	}
+	wrapper.AppendChild(b.El)
+	b.El = wrapper
+	b.IsWrapped = true
+	return b
+}
+
+func (b *BaseWidget) Center() *BaseWidget {
+	b.El.Style().SetProperty("justify-content", "center", "")
+	b.El.Style().SetProperty("align-items", "center", "")
+	if b.El.Style().GetPropertyValue("display") == "" {
+		b.El.Style().SetProperty("display", "flex", "")
+	}
+	return b
+}
+
+func (b *BaseWidget) Padding(px int) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"padding": fmt.Sprintf("%dpx", px),
+	})
+}
+
+func (b *BaseWidget) Margin(px int) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"margin": fmt.Sprintf("%dpx", px),
+	})
+}
+
+func (b *BaseWidget) Width(px int) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"width": fmt.Sprintf("%dpx", px),
+	})
+}
+
+func (b *BaseWidget) Height(px int) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"height": fmt.Sprintf("%dpx", px),
+	})
+}
+
+func (b *BaseWidget) Background(color string) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"background": color,
+	})
+}
+
+func (b *BaseWidget) Border(style string) *BaseWidget {
+	return b.wrapWithStyle(map[string]string{
+		"border": style,
+	})
+}
+
+type Widget interface {
+	Element() dom.HTMLElement
+}
+
+//func (b *BaseWidget) BindStyle(obs ReadonlyObservable[map[string]string]) {
+//	obs.Subscribe(func(styles map[string]string) {
+//		for prop, val := range styles {
+//			b.Inner.Style().SetProperty(prop, val, "")
+//		}
+//	})
+//}
+
+func (b *BaseWidget) BindStyle(obs ReadonlyObservable[map[string]string]) {
+	obs.Subscribe(func(styles map[string]string) {
+		for prop, val := range styles {
+			b.El.Style().SetProperty(prop, val, "")
+		}
+	})
+}
+
+
+
+
+
+
+Filename: ./TODO.md
+-----------------------
+# TODO
+
+## To test:
+- text input (read. write)
+- text areas (read, write)
+- Observables.
+- Derived observables.
+
+## 1. Derived Observables (Computed)
+
+```
+Enable reactive computed values:
+greeting := core.Derive(func() string {
+    return "Hello, " + name.Get()
+})
+```
+
+## 2. Container Widgets
+
+```
+Add VBox, HBox, and Flex layout components:
+layout := core.NewVBox(input, button, label)
+win.Add(layout)
+```
+
+## 3. Component Lifecycle Hooks
+
+```
+Optionally:
+type Component interface {
+	Init()
+	Destroy()
+}
+```
+
+## 4. Event Bus
+
+```
+Basic publish-subscribe event system for app-wide communication:
+core.Publish("user:logged-in", userID)
+core.Subscribe("user:logged-in", func(data any) { ... })
+```
+
+## 5. Minimal Router
+
+```
+Useful for SPA-style apps with:
+```
+
+
+## 6. Misc:
+
+⚙️ Derive(...).Map(...) chaining
+🔀 Minimal routing (core.Route("home"))
+♻️ Lifecycle (Init(), Dispose())
+🧪 Built-in unit tests for widget behaviors
+
+
+
+
+
+Filename: ./README.md
+-----------------------
+# SwiftlyGo
+
+> Build beautiful WebAssembly apps in Go, swiftly and declaratively.
+
+---
+
+## 🚀 Overview
+
+**SwiftlyGo** is a minimalist UI framework inspired by SwiftUI, powered by Go and WebAssembly. It provides a declarative way to build interactive web applications using idiomatic Go code.
+
+No HTML, no CSS, no JavaScript.
+Just Go.
+
+---
+
+## 🧩 Features
+
+* ✅ **Declarative UI composition**
+* 🔁 **Reactive state with Observables**
+* 🧱 **Composable widgets**: `Label`, `TextField`, `Button`
+* 🎯 **Fluent modifiers**: `.Padding()`, `.Background()`, `.Center()`
+* 📦 **Single binary output** (WASM)
+* 🔄 **Hot reload dev server** with live-rebuild
+* 🔧 **Zero-config startup**
+
+---
+
+## 📦 Installation
+
+```bash
+git clone https://github.com/yourname/swiftlygo
+cd swiftlygo
+go run ./cmd/coredev
+```
+
+Make sure you have **Go 1.21+** with WebAssembly support.
+
+---
+
+## ✍️ Example
+
+```go
+package main
+
+import "swiftlygo/core"
+
+func main() {
+    name := core.NewObservable("Your Name")
+
+    label := core.NewLabel("").BindTo(name).
+        Padding(8).Background("lightgray").
+        Border("1px solid #ccc")
+
+    input := core.NewTextField().BindTo(name)
+
+    button := core.NewButton("Update").
+        Center().
+        Padding(8)
+    
+    button.OnClick(func() {
+        name.Set(input.Text())
+    })
+
+    core.NewWindow().Add(input, button, label).Run()
+}
+```
+
+---
+
+## 📁 Directory Layout
+
+```
+.
+├── app/             # Your app code
+├── core/            # SwiftlyGo core framework
+├── cmd/coredev/     # Live-reloading dev server
+├── static/          # HTML shell + wasm_exec.js
+└── main.wasm        # Auto-generated WebAssembly binary
+```
+
+---
+
+## 🧪 Roadmap
+
+* [x] Fluent styling modifiers
+* [x] Observables and bindings
+* [ ] Derived computed observables
+* [ ] Layout containers (e.g., VBox, HBox)
+* [ ] Router & navigation
+* [ ] Component lifecycle hooks
+* [ ] Minimal CSS-in-Go system
+
+---
+
+## 👥 Credits
+
+Created with ❤️ by [@yourname](https://github.com/yourname)
+
+Inspired by SwiftUI, Svelte, and the simplicity of Go.
+
+---
+
+## 📝 License
+
+MIT
+
+
+
+
+
+
+Filename: ./static/index.html
+-----------------------
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Gocore App (js-dom v2)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+    }
+    input, button {
+      display: block;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+  </style>
+  <script src="wasm_exec.js"></script>
+  <script>
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then(result => {
+      go.run(result.instance);
+    }).catch(err => console.error("WASM load error:", err));
+  </script>
+</head>
+<body>
+</body>
+</html>
+
+
+
+
