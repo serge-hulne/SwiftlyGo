@@ -88,7 +88,7 @@ func OneWay() {
 * [x] Fluent styling modifiers
 * [x] Observables and bindings
 * [x] Derived computed observables
-* [x ] Layout containers (e.g., VBox, HBox)
+* [x] Layout containers (e.g., VBox, HBox)
 * [ ] Router & navigation
 * [ ] Component lifecycle hooks
 * [ ] Minimal CSS-in-Go system
