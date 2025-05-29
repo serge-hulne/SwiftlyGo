@@ -70,18 +70,6 @@ func OneWay() {
 
 ---
 
-## 📁 Directory Layout
-
-```
-.
-├── app/             # Your app code
-├── core/            # SwiftlyGo core framework
-├── cmd/coredev/     # Live-reloading dev server
-├── static/          # HTML shell + wasm_exec.js
-└── main.wasm        # Auto-generated WebAssembly binary
-```
-
----
 
 ## 🧪 Roadmap
 
