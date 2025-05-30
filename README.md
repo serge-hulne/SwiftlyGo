@@ -85,7 +85,7 @@ func OneWay() {
 
 ## 👥 Credits
 
-Created with ❤️ by [@serge-hulne](https://github.com/serge-hulne)
+Created by [@serge-hulne](https://github.com/serge-hulne)
 
 Inspired by SwiftUI, Svelte, and the simplicity of Go.
 
