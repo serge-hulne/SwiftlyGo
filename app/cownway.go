@@ -1,7 +1,5 @@
 package main
 
-/*
-
 import (
 	"gocore/core"
 	"gocore/shared"
@@ -125,5 +123,3 @@ func liveRule(alive bool, neighbors int) bool {
 		return false
 	}
 }
-
-*/

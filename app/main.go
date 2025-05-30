@@ -5,7 +5,5 @@ func main() {
 	//todo()
 	//TwoWay()
 	//OneWay()
-	//ConwayReactive()
-	//ConwaySafeReactive()
-	ConwayReactiveGrid()
+	ConwayReactive()
 }
